@@ -1,0 +1,2105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="game-title">Wordle en Español</title>
+    <!-- Link to the Web App Manifest for PWA features -->
+    <link rel="manifest" href="./manifest.json">
+    <!-- Theme color for the browser's address bar (PWA) -->
+    <meta name="theme-color" content="#1a1a1a">
+    
+    <!-- Carga de Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración de Tailwind para usar fuentes Inter -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Base styles for body - apply dark mode by default unless light mode is chosen */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-image: url('./R.jpg'); /* Local image path */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            background-color: #1a1a1a; /* Fallback for dark mode */
+            color: #e0e0e0; /* Default text color for dark mode */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Light mode styles */
+        body.light-mode {
+            background-image: none; /* Remove background image in light mode */
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        /* Colorblind mode specific colors */
+        body.colorblind-mode .tile.correct,
+        body.colorblind-mode .key.correct {
+            background-color: #f5793a; /* Orange for correct in colorblind mode */
+            border-color: #f5793a;
+        }
+
+        body.colorblind-mode .tile.present,
+        body.colorblind-mode .key.present {
+            background-color: #85c0f9; /* Blue for present in colorblind mode */
+            border-color: #85c0f9;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            background-color: rgba(0, 0, 0, 0.7); /* Dark mode semi-transparent background */
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            margin-top: 20px;
+            margin-bottom: 20px;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        body.light-mode .game-container {
+            background-color: rgba(255, 255, 255, 0.85); /* Light mode semi-transparent background */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .board {
+            display: grid;
+            grid-template-rows: repeat(6, 1fr);
+            gap: 8px;
+            width: 100%;
+            max-width: 350px;
+            margin-bottom: 20px;
+        }
+
+        /* Grid columns for dynamic word lengths - default to 5, adjusted by JS for others */
+        .row {
+            display: grid;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .tile {
+            width: 100%;
+            padding-bottom: 100%;
+            position: relative;
+            background-color: #3a3a3c; /* Dark mode default tile */
+            border: 2px solid #565758;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-radius: 8px;
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+
+        body.light-mode .tile {
+            background-color: #d1d1d1;
+            border-color: #a1a1a1;
+            color: #333;
+        }
+
+        .tile span {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            text-align: center;
+        }
+
+        .tile.correct {
+            background-color: #6aaa64; /* Green */
+            border-color: #6aaa64;
+            color: white;
+        }
+
+        .tile.present {
+            background-color: #c9b458; /* Yellow */
+            border-color: #c9b458;
+            color: white;
+        }
+
+        .tile.absent {
+            background-color: #787c7e; /* Dark grey */
+            border-color: #787c7e;
+            color: white;
+        }
+
+        .keyboard {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .keyboard-row {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .key {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 58px;
+            background-color: #818384; /* Dark mode default key */
+            color: white;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-radius: 6px;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        body.light-mode .key {
+            background-color: #c2c5c7;
+            color: #333;
+        }
+
+        .key.large {
+            flex: 1.5;
+        }
+
+        .key:hover {
+            background-color: #929495;
+        }
+
+        /* Key colors should respect colorblind mode as well */
+        .key.correct {
+            background-color: #6aaa64; /* Green */
+        }
+
+        .key.present {
+            background-color: #c9b458; /* Yellow */
+        }
+
+        .key.absent {
+            background-color: #787c7e; /* Dark grey */
+        }
+
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+            text-align: center;
+            min-width: 200px;
+        }
+
+        body.light-mode .message-box {
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #333;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .message-box.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .header {
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #3a3a3c;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        body.light-mode .header {
+            border-bottom-color: #ccc;
+        }
+
+        .header-top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 0 10px;
+        }
+
+        .header h1 {
+            text-align: center;
+            width: 100%;
+            margin-top: 0;
+            margin-bottom: 0;
+            padding-top: 10px;
+        }
+
+        .language-select-container {
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .language-select, .stats-button, .settings-button, .hint-button, .how-to-play-button {
+            padding: 8px 12px;
+            border-radius: 6px;
+            background-color: #3a3a3c; /* Dark mode default */
+            color: #e0e0e0;
+            border: 1px solid #565758;
+            font-size: 1rem;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+        body.light-mode .language-select,
+        body.light-mode .stats-button,
+        body.light-mode .settings-button,
+        body.light-mode .hint-button,
+        body.light-mode .how-to-play-button {
+            background-color: #e0e0e0;
+            color: #333;
+            border-color: #a1a1a1;
+        }
+
+        .language-select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23e0e0e0%22%20d%3D%22M287%2C71.3c-3.2-3.2-8.3-3.2-11.5,0L146.2,197.9L16.9,71.3c-3.2-3.2-8.3-3.2-11.5,0c-3.2,3.2-3.2,8.3,0,11.5l135.9,135.9c3.2,3.2,8.3,3.2,11.5,0L287,82.8C290.3,79.6,290.3,74.5,287,71.3z%22%2F%3E%3C%2Fsvg%3E');
+            background-repeat: no-repeat;
+            background-position: right 10px top 50%;
+            background-size: 12px auto;
+            padding-right: 30px;
+        }
+        body.light-mode .language-select {
+             background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23333%22%20d%3D%22M287%2C71.3c-3.2-3.2-8.3-3.2-11.5,0L146.2,197.9L16.9,71.3c-3.2-3.2-8.3-3.2-11.5,0c-3.2,3.2-3.2,8.3,0,11.5l135.9,135.9c3.2,3.2,8.3,3.2,11.5,0L287,82.8C290.3,79.6,290.3,74.5,287,71.3z%22%2F%3E%3C%2Fsvg%3E');
+        }
+
+        .stats-button, .settings-button, .how-to-play-button {
+            background-color: #4a4a4a;
+            border: 1px solid #666;
+        }
+        .stats-button:hover, .settings-button:hover, .how-to-play-button:hover {
+            background-color: #5c5c5c;
+        }
+        body.light-mode .stats-button, body.light-mode .settings-button, body.light-mode .how-to-play-button {
+            background-color: #ccc;
+            border-color: #a1a1a1;
+        }
+        body.light-mode .stats-button:hover, body.light-mode .settings-button:hover, body.light-mode .how-to-play-button:hover {
+            background-color: #b0b0b0;
+        }
+
+        /* Modal Base Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        body.light-mode .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .stats-modal, .settings-modal, .how-to-play-modal {
+            background-color: #2a2a2a; /* Dark mode modal background */
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+            color: #e0e0e0; /* Dark mode modal text */
+            position: relative;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease, background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        body.light-mode .stats-modal, body.light-mode .settings-modal, body.light-mode .how-to-play-modal {
+            background-color: #ffffff;
+            color: #333;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-overlay.show .stats-modal, .modal-overlay.show .settings-modal, .modal-overlay.show .how-to-play-modal {
+            transform: translateY(0);
+        }
+
+        .stats-modal h2, .settings-modal h2, .how-to-play-modal h2 {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+            color: white;
+        }
+        body.light-mode .stats-modal h2, body.light-mode .settings-modal h2, body.light-mode .how-to-play-modal h2 {
+            color: #333;
+        }
+
+        /* How to Play Modal Specifics */
+        .how-to-play-modal p {
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        .how-to-play-modal strong {
+            font-weight: bold;
+        }
+        .how-to-play-modal .example-row {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin: 15px 0;
+        }
+        .how-to-play-modal .example-tile {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-radius: 4px;
+            color: white;
+            border: 2px solid #565758;
+            background-color: #3a3a3c;
+        }
+        body.light-mode .how-to-play-modal .example-tile {
+            background-color: #d1d1d1;
+            border-color: #a1a1a1;
+            color: #333;
+        }
+
+        /* Example colors for How to Play */
+        .how-to-play-modal .example-tile.correct {
+            background-color: #6aaa64; /* Green */
+            border-color: #6aaa64;
+            color: white;
+        }
+        body.colorblind-mode .how-to-play-modal .example-tile.correct {
+            background-color: #f5793a; /* Orange for correct */
+            border-color: #f5793a;
+        }
+        .how-to-play-modal .example-tile.present {
+            background-color: #c9b458; /* Yellow */
+            border-color: #c9b458;
+            color: white;
+        }
+        body.colorblind-mode .how-to-play-modal .example-tile.present {
+            background-color: #85c0f9; /* Blue for present in colorblind mode */
+            border-color: #85c0f9;
+        }
+        .how-to-play-modal .example-tile.absent {
+            background-color: #787c7e; /* Dark grey */
+            border-color: #787c7e;
+            color: white;
+        }
+
+        /* Colorblind mode for examples */
+        
+
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #3a3a3c;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        body.light-mode .stat-item {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #6aaa64; /* Highlight color */
+            transition: color 0.3s ease;
+        }
+        body.light-mode .stat-value {
+            color: #388e3c; /* Darker green for light mode */
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #ccc;
+            margin-top: 5px;
+            transition: color 0.3s ease;
+        }
+        body.light-mode .stat-label {
+            color: #666;
+        }
+
+        .guess-distribution {
+            margin-bottom: 20px;
+        }
+
+        .guess-distribution h3 {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+            color: white;
+        }
+        body.light-mode .guess-distribution h3 {
+            color: #333;
+        }
+
+        .guess-bar-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .guess-label {
+            width: 20px;
+            font-weight: bold;
+            margin-right: 10px;
+            text-align: right;
+        }
+
+        .guess-bar {
+            flex-grow: 1;
+            height: 20px;
+            background-color: #565758;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+            transition: background-color 0.3s ease;
+        }
+        body.light-mode .guess-bar {
+            background-color: #ccc;
+        }
+
+        .guess-bar-fill {
+            height: 100%;
+            background-color: #6aaa64; /* Green */
+            width: 0%;
+            transition: width 0.5s ease, background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 5px;
+            box-sizing: border-box;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        body.light-mode .guess-bar-fill {
+            background-color: #388e3c; /* Darker green */
+        }
+        body.colorblind-mode .guess-bar-fill {
+            background-color: #f5793a; /* Orange for correct */
+        }
+
+
+        .close-button {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #ccc;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .close-button:hover {
+            color: white;
+        }
+        body.light-mode .close-button {
+            color: #666;
+        }
+        body.light-mode .close-button:hover {
+            color: #333;
+        }
+
+        /* Settings Modal specific styles */
+        .settings-option {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #3a3a3c;
+        }
+        body.light-mode .settings-option {
+            border-bottom-color: #ccc;
+        }
+        .settings-option:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .settings-option label {
+            flex-grow: 1;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+        body.light-mode .settings-option label {
+            color: #333;
+        }
+
+        .settings-option input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            accent-color: #6aaa64; /* Accent color for checkbox */
+            cursor: pointer;
+        }
+        .settings-option input[type="radio"] {
+            margin-right: 5px;
+            margin-left: 15px;
+            accent-color: #6aaa64;
+            cursor: pointer;
+        }
+        .settings-option input[type="range"] {
+            flex-grow: 1;
+            margin-left: 10px;
+            accent-color: #6aaa64;
+            cursor: pointer;
+        }
+        .settings-option #word-length-display {
+            width: 30px;
+            text-align: right;
+            font-weight: bold;
+        }
+        .hint-button-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .hint-button {
+            background-color: #287aed; /* Blue for hint button */
+            border-color: #1a60cc;
+            color: white;
+        }
+        .hint-button:hover {
+            background-color: #1a60cc;
+        }
+        body.light-mode .hint-button {
+            background-color: #64b5f6; /* Lighter blue for light mode */
+            border-color: #42a5f5;
+            color: white;
+        }
+        body.light-mode .hint-button:hover {
+            background-color: #42a5f5;
+        }
+
+        /* Confetti effect */
+        @keyframes confetti-fall {
+            0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+
+        .confetti {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 9999;
+        }
+
+        .confetti-piece {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00; /* Red */
+            opacity: 0;
+            animation: confetti-fall 3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="font-sans">
+    <div class="header">
+        <div class="header-top-row">
+            <div class="language-select-container">
+                <select id="language-selector" class="language-select">
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="fr">🇫🇷 Français</option>
+                </select>
+            </div>
+            <div class="flex items-center">
+                <button id="how-to-play-button" class="how-to-play-button mr-2">¿Cómo Jugar?</button>
+                <button id="stats-button" class="stats-button mr-2">Estadísticas</button>
+                <button id="settings-button" class="settings-button">Ajustes</button>
+            </div>
+        </div>
+        <h1 id="main-title" class="text-4xl font-bold text-white">Wordle en Español</h1>
+    </div>
+
+    <div class="game-container">
+        <div id="board" class="board"></div>
+        <div id="keyboard" class="keyboard"></div>
+        <div id="hint-button-container" class="hint-button-container hidden">
+            <button id="hint-button" class="hint-button">Sugerencia</button>
+        </div>
+    </div>
+
+    <div id="message-box" class="message-box"></div>
+
+    <!-- Modal de Estadísticas -->
+    <div id="stats-overlay" class="modal-overlay">
+        <div id="stats-modal" class="stats-modal">
+            <button id="close-stats-modal" class="close-button">&times;</button>
+            <h2 id="stats-modal-title">Estadísticas</h2>
+
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div id="games-played" class="stat-value">0</div>
+                    <div id="games-played-label" class="stat-label">Partidas jugadas</div>
+                </div>
+                <div class="stat-item">
+                    <div id="games-won" class="stat-value">0</div>
+                    <div id="games-won-label" class="stat-label">Partidas ganadas</div>
+                </div>
+                <div class="stat-item">
+                    <div id="win-percentage" class="stat-value">0%</div>
+                    <div id="win-percentage-label" class="stat-label">Porcentaje de victorias</div>
+                </div>
+                <div class="stat-item">
+                    <div id="current-streak" class="stat-value">0</div>
+                    <div id="current-streak-label" class="stat-label">Racha actual</div>
+                </div>
+                <div class="stat-item">
+                    <div id="max-streak" class="stat-value">0</div>
+                    <div id="max-streak-label" class="stat-label">Mejor racha</div>
+                </div>
+            </div>
+
+            <div class="guess-distribution">
+                <h3 id="guess-distribution-title">Distribución de aciertos</h3>
+                <div id="distribution-bars">
+                    <!-- Las barras de distribución se generarán aquí con JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Ajustes -->
+    <div id="settings-overlay" class="modal-overlay">
+        <div id="settings-modal" class="settings-modal">
+            <button id="close-settings-modal" class="close-button">&times;</button>
+            <h2 id="settings-modal-title">Ajustes</h2>
+
+            <div class="settings-option">
+                <label for="setting-hard-mode">Modo difícil</label>
+                <input type="checkbox" id="setting-hard-mode">
+            </div>
+
+            <div class="settings-option">
+                <label>Tema:</label>
+                <input type="radio" name="theme" id="theme-dark" value="dark">
+                <label for="theme-dark">Oscuro</label>
+                <input type="radio" name="theme" id="theme-light" value="light">
+                <label for="theme-light">Claro</label>
+            </div>
+
+            <div class="settings-option">
+                <label for="setting-colorblind-mode">Modo daltónico</label>
+                <input type="checkbox" id="setting-colorblind-mode">
+            </div>
+
+            <div class="settings-option">
+                <label for="setting-hints">Sugerencia de letras</label>
+                <input type="checkbox" id="setting-hints">
+            </div>
+
+            <div class="settings-option">
+                <label for="setting-confetti">Animación de confeti</label>
+                <input type="checkbox" id="setting-confetti">
+            </div>
+
+            <div class="settings-option">
+                <label for="setting-word-length">Número de letras:</label>
+                <input type="range" id="setting-word-length" min="4" max="11" value="5">
+                <span id="word-length-display">5</span>
+                <!-- Nota: Para que el juego funcione con todas las longitudes (4-11),
+                     necesitas ampliar las listas de palabras válidas y adivinables
+                     en la constante LANGUAGES para cada longitud. -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Nuevo Modal: Cómo Jugar -->
+    <div id="how-to-play-overlay" class="modal-overlay">
+        <div id="how-to-play-modal" class="how-to-play-modal">
+            <button id="close-how-to-play-modal" class="close-button">&times;</button>
+            <h2 id="how-to-play-title">Cómo Jugar</h2>
+            <p>Adivina la palabra en 6 intentos.</p>
+            <p>Cada intento debe ser una palabra válida de la longitud seleccionada. Presiona ENTER para enviar.</p>
+            <p>Después de cada intento, el color de las letras cambiará para mostrarte qué tan cerca estuviste de adivinar la palabra.</p>
+
+            <div class="mb-4">
+                <p><strong>Ejemplos:</strong></p>
+                <div class="example-row">
+                    <div class="example-tile correct">C</div>
+                    <div class="example-tile">A</div>
+                    <div class="example-tile">S</div>
+                    <div class="example-tile">A</div>
+                </div>
+                <p>La letra <strong>C</strong> está en la palabra y en la posición correcta.</p>
+
+                <div class="example-row">
+                    <div class="example-tile">V</div>
+                    <div class="example-tile">I</div>
+                    <div class="example-tile present">D</div>
+                    <div class="example-tile">A</div>
+                </div>
+                <p>La letra <strong>D</strong> está en la palabra pero en la posición incorrecta.</p>
+
+                <div class="example-row">
+                    <div class="example-tile">R</div>
+                    <div class="example-tile">U</div>
+                    <div class="example-tile">B</div>
+                    <div class="example-tile absent">I</div>
+                </div>
+                <p>La letra <strong>I</strong> no está en la palabra en ninguna posición.</p>
+            </div>
+            <p>Puedes cambiar la longitud de la palabra y otras configuraciones en el menú de Ajustes.</p>
+            <p>¡Buena suerte!</p>
+        </div>
+    </div>
+
+
+    <script>
+        // Define las palabras y la configuración para cada idioma
+        const LANGUAGES = {
+            'es': {
+                name: 'Español',
+                title: 'Wordle en Español',
+                // Palabras organizadas por longitud
+                wordsByLength: {
+                    4: {
+                        validWords: ["CASA", "SOLO", "ARTE", "PERO", "MAR", "VIDA", "AIRE", "NADA", "LUNA", "DIA"],
+                        guessableWords: ["CASA", "SOLO", "ARTE"]
+                    },
+                    5: {
+                        validWords: [
+                            "PERRO", "GATOS", "CASAS", "LIBRO", "MANOS", "AGUAS", "SOLAR", "MUNDO", "LUNAS", "NUBES",
+                            "ROCAS", "PLAYA", "FRUTA", "PLATA", "CAMPO", "HORAS", "LUCES", "RITMO", "FIEST", "CARNE",
+                            "PANEL", "POEMA", "BAILE", "FOTOS", "COLOR", "RAYOS", "NIEVE", "VERDE", "AZULN", "ROJOS",
+                            "BLANC", "NEGRO", "GRISO", "CLARO", "FUERZ", "AMORR", "VIDAA", "TIEMP", "VERBO", "IDEAL",
+                            "CALOR", "FRIOZ", "SONDA", "RUEDA", "CARTA", "CAFEZ", "PIEZA", "CABLE", "MOTOR", "RADIO",
+                            "TECHO", "SUELO", "PARED", "PUERT", "VENTA", "CAJAS", "VASOS", "PLATN", "MESAS", "SILLA",
+                            "CAMAO", "ARBOL", "FLORE", "HOJAS", "RAMAS", "FRUTO", "SEMIL", "RAIZO", "TALLO", "HIELO",
+                            "ARENA", "BARCO", "AVION", "COCHE", "TRENL", "BUSES", "CALLE", "PISTA", "VIAJE", "CENAA",
+                            "DESAY", "ALMUER", "COMER", "BEBER", "DORMIR", "LEERM", "ESCRB", "HABLA", "CORRE", "SALTA",
+                            "BAJAS", "SUBIR", "ANDAR", "ENTRA", "SALIR", "PIENS", "CREER", "SENTI", "AMARA", "ODIAA",
+                            "JUEGA", "GANAO", "PIERD", "BUSCA", "ENCUE", "EMPEZ", "FINAL", "VECES", "CADA", "SIEMP",
+                            "NUNCA", "AHORA", "AYERR", "MANAN", "NOCHE", "TARDE", "DIAAN", "SEMAN", "MESES", "ANOSO",
+                            "LARG", "CORTO", "ALTOS", "BAJAS", "ANCHI", "ESTRE", "GRANR", "PEQUE", "BUENL", "MALOS",
+                            "FACIL", "DIFIC", "NUEVO", "VIEJO", "GRATI", "CUEST", "LIBRE", "OCUPA", "LLENO", "VACIO",
+                            "UNICO", "TODOS", "OTROS", "MISMO", "IGUAL", "DISTN", "VERDA", "FALSE", "BUENO", "MALO",
+                            "LEGAL", "ILEGA", "JUSTO", "INJUS", "FUERT", "DEBIL", "RAPID", "LENTO", "CERC", "LEJOS",
+                            "ABIER", "CERRD", "LIMPI", "SUCIO", "RICOR", "POBRE", "FELIZ", "TRIST", "ENFER", "SANOC",
+                            "DUROO", "BLAND", "FINAA", "GRUPO", "MASAA", "TOTAL", "PARTE", "NUMER", "CANTD", "PRECI",
+                            "VALOR", "PESOO", "LARGO", "ANCHO", "ALTUR", "FORMA", "TAMAN", "COLOR", "SABOR", "OLORR",
+                            "RUIDO", "SILEN", "LUZES", "SOMBR", "AGUAA", "FUEGO", "TIERR", "AIRED", "METAL", "MADEE",
+                            "PLAST", "VIDRI", "PAPEL", "TELA", "PIEDR", "ARENA", "BARRO"
+                        ],
+                        guessableWords: [
+                            "PERRO", "GATOS", "LIBRO", "MANOS", "MUNDO", "PLAYA", "VERDE", "AZULN", "NUBES", "ARBOL",
+                            "AVION", "COCHE", "CARTA", "COMER", "BEBER", "DORMIR", "LEERM", "JUEGA", "AMORR", "TIEMP",
+                            "PANEL", "RITMO", "CALOR", "PIEZA", "MOTOR", "TECHO", "SUELO", "PUERT", "SILLA", "CAMAO",
+                            "FLORE", "HIELO", "BARCO", "VIAJE", "CENAA", "HABLA", "SALTA", "PIENS", "CREER", "FELIZ"
+                        ]
+                    },
+                    6: {
+                        validWords: ["CAMINA", "ESTOY", "VERANO", "CIELOS", "MUEBLE"],
+                        guessableWords: ["CAMINA", "ESTOY"]
+                    },
+                    7: {
+                        validWords: ["CORRER", "ESCRITO", "FUTURO", "MOMENTO", "SECRETO", "IMAGENZ"],
+                        guessableWords: ["CORRER", "FUTURO"]
+                    },
+                    8: {
+                        validWords: ["ORDENADO", "COMPUTAR", "TECLADOS", "MUESTRAS", "AVENTURA", "FELICIDA"],
+                        guessableWords: ["COMPUTAR", "AVENTURA"]
+                    },
+                    9: {
+                        validWords: ["UNIVERSAL", "PROGRAMAR", "ESCRITURA", "DIFICULTA", "INSTRUIR", "RESULTADO"],
+                        guessableWords: ["PROGRAMAR", "INSTRUIR"]
+                    },
+                    10: {
+                        validWords: ["COMPLICADO", "APRENDIZAJE", "DESARROLLO", "EXPERIENCIA", "MARAVILLA"],
+                        guessableWords: ["APRENDIZAJE", "MARAVILLA"]
+                    },
+                    11: {
+                        validWords: [
+                            "ABANDONADO", "ABREVIATURA", "ABSOLUTAMENTE", "ACELERACION", "ACTIVIDADES",
+                            "ADMINISTRAR", "AGRADECIDO", "ALIMENTACION", "AMPLIFICAR", "APROVECHAR",
+                            "ARMONIOSO", "ATRACTIVAS", "AUTENTICIDAD", "BENEFICIOSO", "CALIFICACION",
+                            "CAPACITADO", "CARACTERIZA", "CIRCUNSTANCIA", "COLECTIVIDAD", "COMPARTIDO",
+                            "COMPLICADO", "COMPROMISOS", "COMUNICACION", "CONCENTRADO", "CONCLUSIONES",
+                            "CONDICIONES", "CONFIABILID", "CONFIRMACION", "CONOCIMIENTO", "CONSECUENCIA",
+                            "CONSIDERABL", "CONSOLIDADOR", "CONSTITUYEN", "CONSTRUIRSE", "CONTEMPLAR",
+                            "CONTRIBUIR", "CONVENCIONAL", "COORDINACION", "CREATIVIDAD", "CUESTIONARIO",
+                            "CULTIVADOR", "DECISIONES", "DEFINITIVO", "DEMOSTRARSE", "DESARROLLAR",
+                            "DESCUBRIMIEN", "DETERMINADO", "DIFERENCIAR", "DIFICULTOSO", "DIRECCIONAR",
+                            "DISPONIBILID", "DISTRIBUCION", "DOCUMENTALES", "EDUCACIONAL", "EFECTIVIDAD",
+                            "ELABORACION", "ELIMINACION", "EMOCIONANTE", "ENFOQUE", "ENTENDIMIENTO",
+                            "ENTREGA", "ENTUSIASTAS", "EQUILIBRADO", "ESENCIALMENTE", "ESPECIALISTA",
+                            "ESTABLECIDO", "ESTIMULANTE", "ESTRATEGIAS", "EVOLUCIONAR", "EXAGERACION",
+                            "EXCEPCIONAL", "EXPERIMENTAR", "EXPLICACION", "EXPLORACION", "EXPRESIONES",
+                            "FACILITADOR", "FAMILIARIZAR", "FANTASTICOS", "FLEXIBILIDAD", "FORMULACION",
+                            "FUNDAMENTALES", "GENERACIONES", "GENERALIZADO", "GLOBALIZACION", "GOBERNANZA",
+                            "GRATIFICANTE", "HABILIDADES", "HERRAMIENTAS", "HISTORICIDAD", "IDENTIFICAR",
+                            "ILUMINACION", "IMAGINACION", "IMPACTANTES", "IMPLEMENTACION", "INDIVIDUALES",
+                            "INFLUENCIA", "INFORMACION", "INNOVACION", "INSPIRACION", "INSTITUCION",
+                            "INTEGRACION", "INTENSIDAD", "INTERACCION", "INTERPRETACI", "INVESTIGACION",
+                            "JUSTIFICACION", "LEGISLACION", "LIMITACIONES", "LOCALIZACION", "LUMINOSIDAD",
+                            "MAGNIFICADO", "MANTENIMIENTO", "MANUFACTURA", "MATERIALES", "MEDIOAMBIEN",
+                            "MEMORABLES", "METODOLOGIAS", "MINIMIZACION", "MODELIZACION", "MODIFICACION",
+                            "MONITOREO", "MOTIVACIONES", "MOVILIZACION", "MULTIPLICAR", "NACIONALIDA",
+                            "NECESIDADES", "NEGOCIACION", "NEUTRALIZAR", "OBSERVACION", "OPORTUNIDAD",
+                            "ORGANIZACION", "PARTICIPACION", "PERCEPCION", "PERMANENCIA", "PERSPECTIVAS",
+                            "PLANIFICACION", "POSIBILIDADES", "PRECISIONES", "PREPARACION", "PRESENTACION",
+                            "PROBABILIDAD", "PROCESAMIENTO", "PRODUCCION", "PROFESIONAL", "PROGRAMACION",
+                            "PROGRESION", "PROMOCIONAR", "PROPORCIONAL", "PROTECCION", "PROVEEDORES",
+                            "RAZONAMIENTO", "RECOMENDACION", "RECONOCIMIENTO", "RECREACION", "REDUCCION",
+                            "REFLEXIONES", "REGENERACION", "REGULARIZAR", "RELACIONADO", "RELEVANCIA",
+                            "RENDIMIENTO", "REPRESENTACI", "RESISTENCIA", "RESOLUCION", "RESPONSABLE",
+                            "RESTAURACION", "RESULTADOS", "REUTILIZAR", "REVELACION", "REVITALIZAR",
+                            "SABIDURIA", "SATISFACCION", "SIGNIFICADO", "SIMPLICIDAD", "SIMULACION",
+                            "SOSTENIBILID", "SUGERENCIAS", "SUPERFICIAL", "TECNOLOGICA", "TEMPERATURA",
+                            "TENDENCIAS", "TEORICAMENTE", "TOLERANCIA", "TRADICIONAL", "TRANSFORMACIO",
+                            "UBICACION", "ULTIMAMENTE", "UNIFICACION", "UNIVERSALES", "URGENTEMENTE",
+                            "UTILIZACION", "VALIDACION", "VALORACION", "VARIACIONES", "VEGETACION",
+                            "VELOCIDADES", "VERIFICACION", "VIBRACIONES", "VIDEOCONFER", "VIGILANCIA",
+                            "VISUALIZACION", "VITALIDAD", "VOCABULARIO", "VOLUNTARIAD"
+                        ],
+                        guessableWords: [
+                            "ABANDONADO", "ACELERACION", "ADMINISTRAR", "ALIMENTACION", "AUTENTICIDAD",
+                            "BENEFICIOSO", "CALIFICACION", "COMPARTIDO", "CONOCIMIENTO", "CONSECUENCIA",
+                            "CONTRIBUIR", "CREATIVIDAD", "DECISIONES", "DESARROLLAR", "DISPONIBILID",
+                            "EDUCACIONAL", "EFECTIVIDAD", "EXPERIMENTAR", "FLEXIBILIDAD", "INFORMACION",
+                            "INNOVACION", "INTELIGENC", "LOCALIZACION", "MAGNIFICADO", "OPORTUNIDAD",
+                            "ORGANIZACION", "PARTICIPACION", "PERFORMANCE", "PLANIFICACION", "PRODUCCION",
+                            "PROFESIONAL", "PROGRAMACION", "PROTECCION", "RECONOCIMIENTO", "RESOLUCION",
+                            "RESPONSABLE", "SATISFACCION", "SIMULACION", "SOSTENIBILID", "TECNOLOGICA",
+                            "TRANSFORMACIO", "UNIVERSALES", "UTILIZACION", "VERIFICACION", "VISUALIZACION"
+                        ]
+                    }
+                },
+                keyboardLayout: [
+                    ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+                    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+                    ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACKSPACE']
+                ],
+                messages: {
+                    shortWord: 'Word must be {length} letters long.',
+                    invalidWord: 'Invalid word.',
+                    win: 'Congratulations! You guessed the word!',
+                    lose: 'You lost! The word was:',
+                    playAgain: 'Press ENTER to play again.',
+                    initial: 'Guess the word!',
+                    hintUsed: 'Hint: One letter is ',
+                    noMoreHints: 'No more hints available for this game.',
+                    noWordsForLength: 'No words available for this length. Try another.'
+                },
+                regex: /^[A-Z]$/,
+                stats: {
+                    title: 'Statistics',
+                    gamesPlayed: 'Games Played',
+                    gamesWon: 'Games Won',
+                    winPercentage: 'Win Percentage',
+                    currentStreak: 'Current Streak',
+                    maxStreak: 'Max Streak',
+                    guessDistribution: 'Guess Distribution',
+                    close: 'Close'
+                },
+                settings: {
+                    title: 'Settings',
+                    hardMode: 'Hard Mode',
+                    theme: 'Theme:',
+                    darkMode: 'Dark',
+                    lightMode: 'Light',
+                    colorblindMode: 'Colorblind Mode',
+                    letterSuggestions: 'Letter Suggestions',
+                    confettiAnimation: 'Confetti Animation',
+                    wordLength: 'Number of letters:',
+                    close: 'Close',
+                    hintButton: 'Hint'
+                },
+                howToPlay: {
+                    title: 'How To Play',
+                    instructions: `
+                        <p>Guess the Wordle in 6 tries.</p>
+                        <p>Each guess must be a valid word of the selected length. Hit the enter button to submit.</p>
+                        <p>After each guess, the color of the tiles will change to show how close your guess was to the word.</p>
+
+                        <div class="mb-4">
+                            <p><strong>Examples:</strong></p>
+                            <div class="example-row">
+                                <div class="example-tile correct">W</div>
+                                <div class="example-tile">E</div>
+                                <div class="example-tile">A</div>
+                                <div class="example-tile">R</div>
+                                <div class="example-tile">Y</div>
+                            </div>
+                            <p>The letter <strong>W</strong> is in the word and in the correct spot.</p>
+
+                            <div class="example-row">
+                                <div class="example-tile">P</div>
+                                <div class="example-tile present">I</div>
+                                <div class="example-tile">L</div>
+                                <div class="example-tile">L</div>
+                                <div class="example-tile">S</div>
+                            </div>
+                            <p>The letter <strong>I</strong> is in the word but in the wrong spot.</p>
+
+                            <div class="example-row">
+                                <div class="example-tile">V</div>
+                                <div class="example-tile">A</div>
+                                <div class="example-tile">G</div>
+                                <div class="example-tile">U</div>
+                                <div class="example-tile absent">E</div>
+                            </div>
+                            <p>The letter <strong>E</strong> is not in the word in any spot.</p>
+                        </div>
+                        <p>You can change the word length and other settings in the Settings menu.</p>
+                        <p>Good luck!</p>
+                    `,
+                    close: 'Close'
+                }
+            },
+            'fr': {
+                name: 'Français',
+                title: 'Wordle en Français',
+                wordsByLength: {
+                    4: {
+                        validWords: ["MOTS", "JEUX", "LIRE", "BLEU", "ROSE"],
+                        guessableWords: ["MOTS", "JEUX"]
+                    },
+                    5: {
+                        validWords: [
+                            "CHOSE", "POEME", "TABLE", "LIVRE", "MAINS", "AIGUE", "MONDE", "LUNES", "NUAGE", "ROCHE",
+                            "PLAGE", "FRUIT", "ARGNT", "CHAMP", "HEURE", "LUMIE", "RYTME", "FETES", "VIAND", "PANEL",
+                            "POEME", "DANSE", "PHOTO", "COULE", "RAYON", "NEIGE", "VERTE", "BLEUS", "ROUGE", "BLANC",
+                            "NOIRE", "GRISE", "CLAIR", "FORCE", "AMOUR", "VIEUX", "TEMPS", "VERBE", "IDEAL", "CHALE",
+                            "FROID", "SONDE", "ROUES", "CARTE", "CAFEF", "PIECE", "CABLE", "MOTER", "RADIO", "TOITE",
+                            "SOLVE", "MURAI", "PORTE", "VENTE", "BOITE", "VERRE", "ASSIT", "TABLE", "CHAIX", "LITES",
+                            "ARBRE", "FLEUR", "FEUIL", "RAMAS", "FRUTE", "SEMIL", "RAIZE", "TALLO", "GLACE", "SABLE",
+                            "BATEU", "AVION", "VOITU", "TRAIN", "BUSES", "RUEES", "PISTE", "VOYAG", "DINER", "DEJEB",
+                            "SOURI", "MANGY", "BOIRE", "DORMY", "LIREZ", "ECRIB", "PARLE", "COURT", "SAUTS", "BAISE",
+                            "MONTE", "MARCH", "ENTRE", "SORTI", "PENSE", "CROIR", "SENTA", "AIMER", "HAIRS", "JOUER",
+                            "GAGNE", "PERDU", "CHERC", "TROUV", "COMMN", "FINAL", "FOISZ", "CHAQU", "TOUJO", "JAMAIS",
+                            "MAINT", "HIERA", "DEMAN", "NUITE", "TARDE", "JOURN", "SEMAI", "MOISE", "ANNEE", "LONGU",
+                            "COURT", "HAUTE", "BASSE", "LARGE", "ETROI", "GRAND", "PETIT", "BONNE", "MAUVA", "FACIL",
+                            "DIFFIC", "NOUVE", "VIEIL", "GRATI", "COUTS", "LIBRE", "OCCUP", "PLEIN", "VIDES", "SEULE",
+                            "TOUTE", "AUTRE", "MEMEZ", "EGALE", "DIFFE", "VERIT", "FAUXZ", "BONNE", "MAUVE", "LEGAL",
+                            "ILLEG", "JUSTE", "INJUS", "FORTE", "FAIBL", "RAPID", "LENTE", "PROCH", "ELOIG", "OUVER",
+                            "FERME", "PROPR", "SALEC", "RICHE", "PAUVRE", "HEURE", "TRIST", "MALAD", "SAINE", "DUREX",
+                            "DOUCE", "FINIR", "GROUP", "MASSE", "TOTAL", "PARTI", "NUMER", "QUANT", "PRIXO", "VALEU",
+                            "POIDS", "LONGN", "LARGE", "HAUTD", "FORME", "TAILL", "COULE", "SAVEU", "ODEUR", "BRUIT",
+                            "SILEN", "LUMIE", "OMBRE", "EAUXX", "FEUUX", "TERRE", "AIRER", "METAL", "BOISE", "PLAST",
+                            "VERRS", "PAPIX", "TISSU", "PIERR", "ARENC", "BOUEZ"
+                        ],
+                        guessableWords: [
+                            "CHOSE", "TABLE", "LIVRE", "MAINS", "MONDE", "PLAGE", "VERTE", "BLEUS", "NUAGE", "ARBRE",
+                            "AVION", "VOITU", "CARTE", "MANGY", "BOIRE", "DORMY", "LIREZ", "JOUER", "AMOUR", "TEMPS",
+                            "PANEL", "RYTME", "CHALE", "PIECE", "MOTER", "TOITE", "SOLVE", "PORTE", "CHAIX", "LITES",
+                            "FLEUR", "GLACE", "BATEU", "VOYAG", "DINER", "PARLE", "SAUTS", "PENSE", "CROIR", "HEURE"
+                        ]
+                    },
+                    6: {
+                        validWords: ["PARLER", "VILLES", "PLAGES", "LUMIERE", "DORMIR"],
+                        guessableWords: ["PARLER", "VILLES"]
+                    },
+                    7: {
+                        validWords: ["MONTAGN", "VOITURE", "MUSIQUE", "BONHEUR", "FAMILLE", "AVENIR"],
+                        guessableWords: ["VOITURE", "MUSIQUE"]
+                    },
+                    8: {
+                        validWords: ["EXPLORER", "VOYAGEUR", "CREATION", "IMAGINER", "APPRENDR", "CONNAISS"],
+                        guessableWords: ["EXPLORER", "CREATION"]
+                    },
+                    9: {
+                        validWords: ["LIBERTE", "AVENTURE", "EXPERIENCE", "COMPRENDRE", "CONFIANCE", "IMPORTANT"],
+                        guessableWords: ["AVENTURE", "CONFIANCE"]
+                    },
+                    10: {
+                        validWords: ["EXCEPTIONEL", "DECOUVERTE", "INCONNU", "RESPECTABLE", "MERVEILLEU"],
+                        guessableWords: ["DECOUVERTE", "MERVEILLEU"]
+                    },
+                    11: {
+                        validWords: ["MAGNIFIQUE", "OPPORTUNITE", "INTELLIGENT", "DEUXIEME", "AMELIORATION"],
+                        guessableWords: ["MAGNIFIQUE", "OPORTUNITE"]
+                    }
+                },
+                keyboardLayout: [
+                    ['A', 'Z', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+                    ['Q', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M'],
+                    ['ENTER', 'W', 'X', 'C', 'V', 'B', 'N', 'BACKSPACE']
+                ],
+                messages: {
+                    shortWord: 'Le mot doit avoir {length} lettres.',
+                    invalidWord: 'Mot invalide.',
+                    win: 'Félicitations ! Vous avez deviné le mot !',
+                    lose: 'Vous avez perdu ! Le mot était :',
+                    playAgain: 'Appuyez sur ENTRÉE para rejouer.',
+                    initial: 'Devinez le mot !',
+                    hintUsed: 'Indice: Une lettre est ',
+                    noMoreHints: 'Aucun indice disponible pour cette partie.',
+                    noWordsForLength: 'Aucun mot disponible pour cette longueur. Retour à 5 lettres.'
+                },
+                regex: /^[A-Z]$/,
+                stats: {
+                    title: 'Statistiques',
+                    gamesPlayed: 'Parties jouées',
+                    gamesWon: 'Parties gagnées',
+                    winPercentage: 'Pourcentage de victoires',
+                    currentStreak: 'Série actuelle',
+                    maxStreak: 'Meilleure série',
+                    guessDistribution: 'Distribution des tentatives',
+                    close: 'Fermer'
+                },
+                settings: {
+                    title: 'Paramètres',
+                    hardMode: 'Mode difficile',
+                    theme: 'Thème:',
+                    darkMode: 'Sombre',
+                    lightMode: 'Clair',
+                    colorblindMode: 'Mode daltonien',
+                    letterSuggestions: 'Suggestions de lettres',
+                    confettiAnimation: 'Animation de confettis',
+                    wordLength: 'Nombre de letras:',
+                    close: 'Fermer',
+                    hintButton: 'Indice'
+                },
+                howToPlay: {
+                    title: 'Comment jouer',
+                    instructions: `
+                        <p>Devinez le Wordle en 6 tentatives.</p>
+                        <p>Cada tentative doit être un mot valide de la longitud seleccionada. Appuyez sur Entrée para soumettre.</p>
+                        <p>Después cada tentative, la couleur des tuiles changera para indicar à quel point votre supposition était proche du mot.</p>
+
+                        <div class="mb-4">
+                            <p><strong>Ejemplos:</strong></p>
+                            <div class="example-row">
+                                <div class="example-tile correct">P</div>
+                                <div class="example-tile">O</div>
+                                <div class="example-tile">M</div>
+                                <div class="example-tile">M</div>
+                                <div class="example-tile">E</div>
+                            </div>
+                            <p>La lettre <strong>P</strong> est dans le mot et au bon endroit.</p>
+
+                            <div class="example-row">
+                                <div class="example-tile">L</div>
+                                <div class="example-tile present">A</div>
+                                <div class="example-tile">C</div>
+                                <div class="example-tile">E</div>
+                                <div class="example-tile">R</div>
+                            </div>
+                            <p>La letra <strong>A</strong> es dans le mot mais au mauvais endroit.</p>
+
+                            <div class="example-row">
+                                <div class="example-tile">V</div>
+                                <div class="example-tile">I</div>
+                                <div class="example-tile">D</div>
+                                <div class="example-tile">E</div>
+                                <div class="example-tile absent">O</div>
+                            </div>
+                            <p>La letra <strong>O</strong> n'est pas dans le mot.</p>
+                        </div>
+                        <p>Vous pouvez modifier la longitud del mot et d'autres parámetros dans le menu Paramètres.</p>
+                        <p>Bonne chance !</p>
+                    `,
+                    close: 'Fermer'
+                }
+            }
+        };
+
+        // Variables de estado del juego
+        let currentLanguageCode = 'es';
+        let currentLangData = LANGUAGES[currentLanguageCode];
+        let secretWord = '';
+        let currentGuess = '';
+        let currentRow = 0;
+        let gameOver = false;
+        let stats = {}; // Objeto para almacenar las estadísticas
+        let gameSettings = {}; // Objeto para almacenar la configuración del juego
+        let hintUsedThisGame = false; // Flag para controlar las sugerencias por partida
+
+        // Referencias a elementos del DOM
+        const boardElement = document.getElementById('board');
+        const keyboardElement = document.getElementById('keyboard');
+        const messageBox = document.getElementById('message-box');
+        const languageSelector = document.getElementById('language-selector');
+        const mainTitle = document.getElementById('main-title');
+        const gameTitleMeta = document.getElementById('game-title');
+        const statsButton = document.getElementById('stats-button');
+        const statsOverlay = document.getElementById('stats-overlay');
+        const closeStatsModalButton = document.getElementById('close-stats-modal');
+        const settingsButton = document.getElementById('settings-button');
+        const settingsOverlay = document.getElementById('settings-overlay');
+        const closeSettingsModalButton = document.getElementById('close-settings-modal');
+        // New How To Play elements
+        const howToPlayButton = document.getElementById('how-to-play-button');
+        const howToPlayOverlay = document.getElementById('how-to-play-overlay');
+        const closeHowToPlayModalButton = document.getElementById('close-how-to-play-modal');
+        const howToPlayTitle = document.getElementById('how-to-play-title');
+        const howToPlayContent = document.getElementById('how-to-play-modal'); // Referencia al div completo del modal de cómo jugar.
+
+
+        // Settings input elements
+        const hardModeCheckbox = document.getElementById('setting-hard-mode');
+        const themeDarkRadio = document.getElementById('theme-dark');
+        const themeLightRadio = document.getElementById('theme-light');
+        const colorblindModeCheckbox = document.getElementById('setting-colorblind-mode');
+        const hintsCheckbox = document.getElementById('setting-hints');
+        const confettiCheckbox = document.getElementById('setting-confetti');
+        const wordLengthRange = document.getElementById('setting-word-length');
+        const wordLengthDisplay = document.getElementById('word-length-display');
+        const hintButtonContainer = document.getElementById('hint-button-container');
+        const hintButton = document.getElementById('hint-button');
+
+        // Initial default stats
+        const defaultStats = () => ({
+            gamesPlayed: 0,
+            gamesWon: 0,
+            currentStreak: 0,
+            maxStreak: 0,
+            guessDistribution: {
+                1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0
+            }
+        });
+
+        // Initial default settings
+        const defaultSettings = () => ({
+            hardMode: false,
+            darkMode: true, // true for dark, false for light
+            colorblindMode: false,
+            showHints: false,
+            showConfetti: true,
+            wordLength: 5 // Default to 5 letters
+        });
+
+        // --- Stats Functions ---
+        /**
+         * Carga las estadísticas del localStorage. Si no existen, inicializa con valores por defecto.
+         */
+        function loadStats() {
+            const storedStats = localStorage.getItem('wordleStats');
+            if (storedStats) {
+                stats = JSON.parse(storedStats);
+                for (let i = 1; i <= 6; i++) {
+                    if (stats.guessDistribution[i] === undefined) {
+                        stats.guessDistribution[i] = 0;
+                    }
+                }
+            } else {
+                stats = defaultStats();
+            }
+        }
+
+        /**
+         * Guarda las estadísticas en el localStorage.
+         */
+        function saveStats() {
+            localStorage.setItem('wordleStats', JSON.stringify(stats));
+        }
+
+        /**
+         * Actualiza las estadísticas del juego.
+         * @param {boolean} won - Indica si el jugador ganó la partida.
+         */
+        function updateStats(won) {
+            stats.gamesPlayed++;
+            if (won) {
+                stats.gamesWon++;
+                stats.currentStreak++;
+                if (stats.currentStreak > stats.maxStreak) {
+                    stats.maxStreak = stats.currentStreak;
+                }
+                // Update guess distribution only if the current row is within the valid range (1-6 attempts)
+                if (currentRow + 1 >= 1 && currentRow + 1 <= 6) {
+                    stats.guessDistribution[currentRow + 1]++;
+                }
+            } else {
+                stats.currentStreak = 0; // Break streak if lost
+            }
+            saveStats();
+        }
+
+        /**
+         * Renderiza las estadísticas en el modal.
+         */
+        function renderStats() {
+            const langStats = currentLangData.stats;
+            document.getElementById('stats-modal-title').textContent = langStats.title;
+            // Corregido: games-played-label ahora apunta al ID correcto para "Partidas jugadas"
+            document.getElementById('games-played-label').textContent = langStats.gamesPlayed;
+            document.getElementById('games-won-label').textContent = langStats.gamesWon;
+            document.getElementById('win-percentage-label').textContent = langStats.winPercentage;
+            document.getElementById('current-streak-label').textContent = langStats.currentStreak;
+            document.getElementById('max-streak-label').textContent = langStats.maxStreak;
+            document.getElementById('guess-distribution-title').textContent = langStats.guessDistribution;
+            closeStatsModalButton.textContent = langStats.close;
+
+            document.getElementById('games-played').textContent = stats.gamesPlayed;
+            document.getElementById('games-won').textContent = stats.gamesWon;
+            const winPercentage = stats.gamesPlayed > 0 ? ((stats.gamesWon / stats.gamesPlayed) * 100).toFixed(0) : 0;
+            document.getElementById('win-percentage').textContent = `${winPercentage}%`;
+            document.getElementById('current-streak').textContent = stats.currentStreak;
+            document.getElementById('max-streak').textContent = stats.maxStreak;
+
+            const distributionBars = document.getElementById('distribution-bars');
+            distributionBars.innerHTML = '';
+            // Get max guesses from current distribution to scale bars correctly
+            const maxGuesses = Math.max(...Object.values(stats.guessDistribution));
+
+            for (let i = 1; i < 7; i++) { // Always show bars for 1-6 attempts
+                const count = stats.guessDistribution[i] || 0; // Ensure count is not undefined
+                const percentage = maxGuesses > 0 ? (count / maxGuesses) * 100 : 0;
+
+                const barHtml = `
+                    <div class="guess-bar-container">
+                        <div class="guess-label">${i}</div>
+                        <div class="guess-bar">
+                            <div class="guess-bar-fill" style="width: ${percentage}%;">
+                                ${count}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                distributionBars.insertAdjacentHTML('beforeend', barHtml);
+            }
+        }
+
+        /**
+         * Muestra el modal de estadísticas.
+         */
+        function showStatsModal() {
+            renderStats();
+            statsOverlay.classList.add('show');
+        }
+
+        /**
+         * Oculta el modal de estadísticas.
+         */
+        function hideStatsModal() {
+            statsOverlay.classList.remove('show');
+        }
+
+        // --- Settings Functions ---
+        /**
+         * Loads settings from localStorage. Initializes with defaults if not found.
+         */
+        function loadSettings() {
+            const storedSettings = localStorage.getItem('wordleSettings');
+            if (storedSettings) {
+                gameSettings = JSON.parse(storedSettings);
+            } else {
+                gameSettings = defaultSettings();
+            }
+            // Ensure all settings properties exist (for new settings added in updates)
+            const defaults = defaultSettings();
+            for (const key in defaults) {
+                if (gameSettings[key] === undefined) {
+                    gameSettings[key] = defaults[key];
+                }
+            }
+            // Ensure wordLength is within the allowed range
+            gameSettings.wordLength = Math.max(4, Math.min(11, gameSettings.wordLength));
+        }
+
+        /**
+         * Saves current settings to localStorage.
+         */
+        function saveSettings() {
+            localStorage.setItem('wordleSettings', JSON.stringify(gameSettings));
+        }
+
+        /**
+         * Applies the current settings to the UI and game logic.
+         */
+        function applySettings() {
+            // Update modal text for current language
+            const langSettings = currentLangData.settings;
+            document.getElementById('settings-modal-title').textContent = langSettings.title;
+            document.querySelector('label[for="setting-hard-mode"]').textContent = langSettings.hardMode;
+            document.querySelector('label[for="theme-dark"]').textContent = langSettings.darkMode;
+            document.querySelector('label[for="theme-light"]').textContent = langSettings.lightMode;
+            document.querySelector('label[for="setting-colorblind-mode"]').textContent = langSettings.colorblindMode;
+            document.querySelector('label[for="setting-hints"]').textContent = langSettings.letterSuggestions;
+            document.querySelector('label[for="setting-confetti"]').textContent = langSettings.confettiAnimation;
+            // Update the word length label dynamically
+            document.querySelector('label[for="setting-word-length"]').textContent = `${langSettings.wordLength}`;
+            document.getElementById('close-settings-modal').textContent = langSettings.close;
+            document.getElementById('hint-button').textContent = currentLangData.messages.hintButton;
+
+
+            // Apply theme (dark/light)
+            if (gameSettings.darkMode) {
+                document.body.classList.remove('light-mode');
+                themeDarkRadio.checked = true;
+            } else {
+                document.body.classList.add('light-mode');
+                themeLightRadio.checked = true;
+            }
+
+            // Apply colorblind mode
+            if (gameSettings.colorblindMode) {
+                document.body.classList.add('colorblind-mode');
+                colorblindModeCheckbox.checked = true;
+            } else {
+                document.body.classList.remove('colorblind-mode');
+                colorblindModeCheckbox.checked = false;
+            }
+
+            // Apply hard mode
+            hardModeCheckbox.checked = gameSettings.hardMode;
+
+            // Apply hints setting
+            hintsCheckbox.checked = gameSettings.showHints;
+            hintButtonContainer.classList.toggle('hidden', !gameSettings.showHints);
+
+            // Apply confetti setting
+            confettiCheckbox.checked = gameSettings.showConfetti;
+
+            // Apply word length (UI and initial game state)
+            wordLengthRange.value = gameSettings.wordLength;
+            wordLengthDisplay.textContent = gameSettings.wordLength;
+
+            // Re-render keyboard to apply potential colorblind mode changes
+            createKeyboard();
+            // Re-evaluate tile colors based on current state (important for colorblind mode)
+            // This is generally not needed on applySettings unless a game is active and tiles have state.
+            // When initializeGame is called, it re-renders the board which handles tile colors.
+
+            // Update How To Play modal content
+            howToPlayTitle.textContent = currentLangData.howToPlay.title;
+            // Set innerHTML directly to render the HTML string
+            // howToPlayContent.querySelector('h2').nextElementSibling.innerHTML = currentLangData.howToPlay.instructions; // Updates the content inside the modal
+            // The above line was incorrect. It was targeting the parent of the first <p> after <h2>.
+            // A more robust way is to select the direct container for the instructions, or modify the parent of the whole modal.
+            // Given the HTML structure, the instructions are directly inside 'how-to-play-modal' after the <h2> and close button.
+            // We need to target the paragraph elements inside and update them.
+            // A simpler way is to clear and re-insert the content, assuming the structure is stable.
+            // Or, as implemented, use a specific div to hold dynamic instruction content.
+
+            // Clear existing content within how-to-play-modal, excluding h2 and button
+            const howToPlayContentArea = howToPlayContent; // This is the entire modal div
+            let currentChild = howToPlayContentArea.firstElementChild;
+            while (currentChild && currentChild.tagName !== 'P' && currentChild.tagName !== 'BUTTON') { // Skip h2 and button
+                currentChild = currentChild.nextElementSibling;
+            }
+            while (currentChild && currentChild.tagName !== 'BUTTON') { // Remove all paragraphs, div examples, etc., until the button
+                const nextChild = currentChild.nextElementSibling;
+                currentChild.remove();
+                currentChild = nextChild;
+            }
+            howToPlayContentArea.insertAdjacentHTML('beforeend', currentLangData.howToPlay.instructions);
+
+            closeHowToPlayModalButton.textContent = currentLangData.howToPlay.close;
+        }
+
+        /**
+         * Shows the settings modal.
+         */
+        function showSettingsModal() {
+            applySettings(); // Render settings before showing
+            settingsOverlay.classList.add('show');
+        }
+
+        /**
+         * Hides the settings modal.
+         */
+        function hideSettingsModal() {
+            settingsOverlay.classList.remove('show');
+        }
+
+        /**
+         * Shows the How To Play modal.
+         */
+        function showHowToPlayModal() {
+            applySettings(); // To ensure text is in current language
+            howToPlayOverlay.classList.add('show');
+        }
+
+        /**
+         * Hides the How To Play modal.
+         */
+        function hideHowToPlayModal() {
+            howToPlayOverlay.classList.remove('show');
+        }
+
+
+        /**
+         * Generates confetti animation.
+         */
+        function createConfetti() {
+            if (!gameSettings.showConfetti) return;
+
+            const confettiContainer = document.createElement('div');
+            confettiContainer.classList.add('confetti');
+            document.body.appendChild(confettiContainer);
+
+            for (let i = 0; i < 50; i++) {
+                const piece = document.createElement('div');
+                piece.classList.add('confetti-piece');
+                piece.style.left = `${Math.random() * 100}vw`;
+                piece.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 70%)`;
+                piece.style.animationDelay = `${Math.random() * 2}s`;
+                piece.style.transform = `scale(${Math.random() * 1 + 0.5})`;
+                confettiContainer.appendChild(piece);
+            }
+
+            setTimeout(() => {
+                confettiContainer.remove();
+            }, 3000); // Remove confetti after animation
+        }
+
+
+        // --- Game Logic Functions ---
+        /**
+         * Inicializa el estado del juego, el tablero y el teclado según el idioma actual y los ajustes.
+         */
+        function initializeGame() {
+            mainTitle.textContent = currentLangData.title;
+            gameTitleMeta.textContent = currentLangData.title;
+
+            const wordsForCurrentLength = currentLangData.wordsByLength[gameSettings.wordLength];
+
+            // Check if words exist for the selected length
+            if (!wordsForCurrentLength || wordsForCurrentLength.guessableWords.length === 0) {
+                showMessage(currentLangData.messages.noWordsForLength, 3000);
+                secretWord = ''; // No secret word if no words available
+                gameOver = true; // Set game over to prevent playing
+                currentGuess = '';
+                currentRow = 0; // Reset currentRow
+                boardElement.innerHTML = ''; // Clear board
+                createBoard(); // Recreate board with current length (no letters)
+                keyboardElement.innerHTML = ''; // Clear keyboard
+                createKeyboard(); // Recreate keyboard
+                return; // Exit if no words
+            } else {
+                 secretWord = wordsForCurrentLength.guessableWords[Math.floor(Math.random() * wordsForCurrentLength.guessableWords.length)].toUpperCase();
+            }
+
+            currentGuess = '';
+            currentRow = 0;
+            gameOver = false;
+            hintUsedThisGame = false; // Reset hint usage for new game
+
+            boardElement.innerHTML = '';
+            createBoard();
+
+            keyboardElement.innerHTML = '';
+            createKeyboard();
+
+            // Clear all key colors
+            document.querySelectorAll('.key').forEach(key => {
+                key.classList.remove('correct', 'present', 'absent');
+            });
+
+            // Update hint button visibility
+            hintButtonContainer.classList.toggle('hidden', !gameSettings.showHints);
+
+            document.removeEventListener('keydown', handleKeyDown);
+            document.addEventListener('keydown', handleKeyDown);
+
+            showMessage(currentLangData.messages.initial, 2000);
+        }
+
+        /**
+         * Crea el HTML del tablero de Wordle (6 filas x `wordLength` casillas).
+         */
+        function createBoard() {
+            // Adjust board max-width based on word length to keep tiles reasonably sized
+            // Each tile is approx 58px (height/width) + 8px gap. Add some padding.
+            const tileDimension = 58; // Approx size from .key height
+            const gap = 8;
+            const boardPadding = 40; // Total padding around the board
+            const calculatedMaxWidth = gameSettings.wordLength * tileDimension + (gameSettings.wordLength - 1) * gap + boardPadding;
+            boardElement.style.maxWidth = `${Math.min(500, calculatedMaxWidth)}px`;
+            
+            // Adjust font size based on word length for readability
+            const root = document.documentElement;
+            let fontSize = 2.2; // Default for 5 letters
+            if (gameSettings.wordLength >= 8) {
+                fontSize = 1.6;
+            } else if (gameSettings.wordLength >= 6) {
+                fontSize = 1.9;
+            }
+            // Apply font size to tiles directly
+            document.querySelectorAll('.tile').forEach(tile => {
+                tile.style.fontSize = `${fontSize}rem`;
+            });
+
+
+            for (let i = 0; i < 6; i++) {
+                const rowElement = document.createElement('div');
+                rowElement.classList.add('row');
+                // Set grid template columns dynamically based on word length
+                rowElement.style.gridTemplateColumns = `repeat(${gameSettings.wordLength}, 1fr)`;
+                rowElement.dataset.wordLength = gameSettings.wordLength;
+
+                for (let j = 0; j < gameSettings.wordLength; j++) {
+                    const tileElement = document.createElement('div');
+                    tileElement.classList.add('tile', 'rounded-lg');
+                    tileElement.dataset.row = i;
+                    tileElement.dataset.col = j;
+                    tileElement.innerHTML = '<span></span>';
+                    rowElement.appendChild(tileElement);
+                }
+                boardElement.appendChild(rowElement);
+            }
+        }
+
+        /**
+         * Crea el HTML del teclado virtual según el layout del idioma actual.
+         */
+        function createKeyboard() {
+            keyboardElement.innerHTML = ''; // Clear existing keyboard
+            currentLangData.keyboardLayout.forEach(row => {
+                const rowElement = document.createElement('div');
+                rowElement.classList.add('keyboard-row');
+                row.forEach(keyText => {
+                    const keyElement = document.createElement('button');
+                    keyElement.classList.add('key', 'rounded-md');
+                    if (keyText === 'ENTER' || keyText === 'BACKSPACE') {
+                        keyElement.classList.add('large');
+                    }
+                    keyElement.textContent = keyText === 'BACKSPACE' ? (currentLanguageCode === 'es' ? 'BORRAR' : 'DELETE') : keyText;
+                    keyElement.dataset.key = keyText;
+                    keyElement.addEventListener('click', () => handleInput(keyText));
+                    rowElement.appendChild(keyElement);
+                });
+                keyboardElement.appendChild(rowElement);
+            });
+            // Reapply key colors based on previous guesses (important after re-creating keyboard)
+            // This part is for when we create the keyboard after a guess, but before a new game.
+            // On a new game, initializeGame clears the key colors first.
+            const allTiles = document.querySelectorAll('.tile');
+            const keyStates = {}; // Map to store the 'best' state for each key
+            allTiles.forEach(tile => {
+                const letter = tile.textContent.toUpperCase();
+                if (letter) {
+                    if (tile.classList.contains('correct')) {
+                        keyStates[letter] = 'correct';
+                    } else if (tile.classList.contains('present') && keyStates[letter] !== 'correct') {
+                        keyStates[letter] = 'present';
+                    } else if (tile.classList.contains('absent') && keyStates[letter] !== 'correct' && keyStates[letter] !== 'present') {
+                        keyStates[letter] = 'absent';
+                    }
+                }
+            });
+            for (const letter in keyStates) {
+                updateKeyColor(letter, keyStates[letter]);
+            }
+        }
+
+        /**
+         * Maneja la entrada de letras desde el teclado físico o virtual.
+         * @param {string} key - La tecla presionada.
+         */
+        function handleInput(key) {
+            if (gameOver) {
+                if (key === 'ENTER') {
+                    initializeGame();
+                }
+                return;
+            }
+
+            // If secret word is not set (e.g., no words for length), disable input
+            if (!secretWord) {
+                showMessage("Por favor, selecciona una longitud de palabra con palabras disponibles.", 2000);
+                return;
+            }
+
+            if (key === 'BACKSPACE' || key === 'BORRAR' || key === 'DELETE') {
+                currentGuess = currentGuess.slice(0, -1);
+            } else if (key === 'ENTER') {
+                checkGuess();
+                return;
+            } else if (currentGuess.length < gameSettings.wordLength && currentLangData.regex.test(key)) {
+                currentGuess += key;
+            }
+
+            updateBoardTiles();
+        }
+
+        /**
+         * Actualiza el contenido de las casillas del tablero con la palabra actual.
+         */
+        function updateBoardTiles() {
+            // Adjust font size dynamically as user types for better fit
+            const currentTileFontSize = parseFloat(window.getComputedStyle(document.querySelector('.tile')).fontSize);
+            const idealTileWidth = (parseFloat(boardElement.style.maxWidth) - 40 - (gameSettings.wordLength -1)*8) / gameSettings.wordLength;
+            // Prevent text overflow by scaling font down
+            if (currentGuess.length > 0 && currentTileFontSize * (currentGuess.length / gameSettings.wordLength) > idealTileWidth * 0.8) {
+                // This is a rough estimation, more precise calculation might be needed
+                // For simplicity, we just use the initial font size set in createBoard, as auto-sizing can be complex.
+                // A better approach would be to scale text content, not the base font-size, or let CSS handle it.
+            }
+
+            const currentRowTiles = document.querySelectorAll(`.tile[data-row="${currentRow}"] span`);
+            currentRowTiles.forEach((tile, index) => {
+                tile.textContent = currentGuess[index] || '';
+            });
+        }
+
+        /**
+         * Checks if the current guess satisfies hard mode rules.
+         * @returns {boolean} True if the guess is valid for hard mode, false otherwise.
+         */
+        function isHardModeValidGuess() {
+            if (!gameSettings.hardMode || currentRow === 0) {
+                return true; // Hard mode not active or it's the first guess
+            }
+
+            // Get feedback from previous row
+            const prevRowTiles = document.querySelectorAll(`.tile[data-row="${currentRow - 1}"]`);
+            const prevGuess = Array.from(prevRowTiles).map(tile => tile.textContent).join('');
+
+            // Track required letters/positions from previous guess
+            const requiredCorrectPositions = {}; // {index: letter}
+            const requiredPresentLetters = new Set(); // {letter}
+
+            const secretWordArray = secretWord.split(''); // Use the actual secret word
+            const feedbackPrevGuess = prevGuess.split('');
+
+            // First pass: Identify correct letters in correct positions
+            for (let i = 0; i < gameSettings.wordLength; i++) {
+                if (prevGuess[i] === secretWordArray[i]) {
+                    requiredCorrectPositions[i] = prevGuess[i];
+                    // Mark as used from secret word to handle duplicates
+                    // No need to modify secretWordArray copy here, just track requirements
+                }
+            }
+
+            // Second pass: Identify present letters (yellow)
+            // This is more complex because we need to consider how many times a letter was 'present'
+            // and how many times it was 'correct'.
+            const tempSecretCounts = {};
+            secretWordArray.forEach(letter => {
+                tempSecretCounts[letter] = (tempSecretCounts[letter] || 0) + 1;
+            });
+
+            // Adjust counts for 'correct' letters already found
+            for (let i = 0; i < gameSettings.wordLength; i++) {
+                if (prevGuess[i] === secretWordArray[i]) {
+                    if (tempSecretCounts[prevGuess[i]] > 0) {
+                        tempSecretCounts[prevGuess[i]]--;
+                    }
+                }
+            }
+
+            // Now check for 'present' letters based on remaining secret counts
+            for (let i = 0; i < gameSettings.wordLength; i++) {
+                if (prevGuess[i] !== secretWordArray[i] && tempSecretCounts[prevGuess[i]] > 0) {
+                    requiredPresentLetters.add(prevGuess[i]);
+                    tempSecretCounts[prevGuess[i]]--;
+                }
+            }
+
+
+            // Check current guess against hard mode rules
+            const currentGuessArray = currentGuess.split('');
+
+            // Rule 1: All previously revealed green letters must be in the same spot
+            for (const index in requiredCorrectPositions) {
+                if (currentGuessArray[index] !== requiredCorrectPositions[index]) {
+                    showMessage(`En modo difícil, la letra '${requiredCorrectPositions[index]}' debe estar en la posición ${parseInt(index) + 1}.`, 3000);
+                    return false;
+                }
+            }
+
+            // Rule 2: All previously revealed yellow letters must be included in the new guess
+            const tempCurrentGuess = [...currentGuessArray]; // Use a temp array to mark used letters for this check
+            for (const requiredLetter of requiredPresentLetters) {
+                const indexInCurrentGuess = tempCurrentGuess.indexOf(requiredLetter);
+                if (indexInCurrentGuess === -1) {
+                    showMessage(`En modo difícil, la letra '${requiredLetter}' debe estar incluida en tu palabra.`, 3000);
+                    return false;
+                }
+                tempCurrentGuess[indexInCurrentGuess] = null; // Mark as used
+            }
+
+            return true;
+        }
+
+
+        /**
+         * Comprueba la palabra adivinada y actualiza el estado del juego y las estadísticas.
+         */
+        function checkGuess() {
+            if (currentGuess.length !== gameSettings.wordLength) {
+                showMessage(currentLangData.messages.shortWord.replace('{length}', gameSettings.wordLength), 1500);
+                return;
+            }
+
+            const currentWords = currentLangData.wordsByLength[gameSettings.wordLength];
+            if (!currentWords || !currentWords.validWords.includes(currentGuess)) {
+                 showMessage(currentLangData.messages.invalidWord, 1500);
+                 return;
+            }
+
+            // Hard Mode validation
+            if (!isHardModeValidGuess()) {
+                return;
+            }
+
+            const currentGuessTiles = document.querySelectorAll(`.tile[data-row="${currentRow}"]`);
+            const secretWordArray = secretWord.split('');
+            const guessWordArray = currentGuess.split('');
+
+            // Mapa para rastrear la frecuencia de letras en la palabra secreta (para manejar duplicados)
+            const secretLetterCounts = {};
+            secretWordArray.forEach(letter => {
+                secretLetterCounts[letter] = (secretLetterCounts[letter] || 0) + 1;
+            });
+
+            // First pass: Mark correct letters (green)
+            for (let i = 0; i < gameSettings.wordLength; i++) {
+                if (guessWordArray[i] === secretWordArray[i]) {
+                    currentGuessTiles[i].classList.add('correct');
+                    updateKeyColor(guessWordArray[i], 'correct');
+                    secretLetterCounts[guessWordArray[i]]--;
+                    guessWordArray[i] = null; // Mark as processed
+                    secretWordArray[i] = null; // Mark as processed
+                }
+            }
+
+            // Second pass: Mark present letters (yellow) and absent (grey)
+            for (let i = 0; i < gameSettings.wordLength; i++) {
+                if (guessWordArray[i] === null) continue; // Already processed (green)
+
+                if (secretLetterCounts[guessWordArray[i]] > 0) {
+                    currentGuessTiles[i].classList.add('present');
+                    updateKeyColor(guessWordArray[i], 'present');
+                    secretLetterCounts[guessWordArray[i]]--;
+                } else {
+                    currentGuessTiles[i].classList.add('absent');
+                    updateKeyColor(guessWordArray[i], 'absent');
+                }
+            }
+
+            // Comprueba si el jugador ganó o perdió
+            if (currentGuess === secretWord) {
+                showMessage(currentLangData.messages.win, 5000);
+                gameOver = true;
+                updateStats(true); // Update stats: won
+                if (gameSettings.showConfetti) {
+                    createConfetti();
+                }
+                setTimeout(() => showMessage(currentLangData.messages.playAgain, 0), 5100);
+            } else if (currentRow === 5) { // Still 6 attempts (rows 0-5)
+                showMessage(`${currentLangData.messages.lose} ${secretWord}`, 5000);
+                gameOver = true;
+                updateStats(false); // Update stats: lost
+                setTimeout(() => showMessage(currentLangData.messages.playAgain, 0), 5100);
+            } else {
+                currentRow++;
+                currentGuess = '';
+            }
+        }
+
+        /**
+         * Actualiza el color de la tecla virtual correspondiente.
+         * Si ya tiene un color "mejor", no lo sobrescribe (ej. verde > amarillo > gris).
+         * @param {string} key - La letra de la tecla.
+         * @param {string} status - El estado ('correct', 'present', 'absent').
+         */
+        function updateKeyColor(key, status) {
+            const keyElement = document.querySelector(`.key[data-key="${key}"]`);
+            if (!keyElement) return;
+
+            const currentClasses = keyElement.classList;
+
+            // Priority: correct > present > absent
+            if (currentClasses.contains('correct')) {
+                return;
+            }
+            if (currentClasses.contains('present') && status !== 'correct') {
+                return;
+            }
+
+            keyElement.classList.remove('absent', 'present', 'correct');
+            keyElement.classList.add(status);
+        }
+
+        /**
+         * Muestra un mensaje temporal en la pantalla.
+         * @param {string} message - El mensaje a mostrar.
+         * @param {number} duration - Duración en milisegundos para mostrar el mensaje.
+         * Si es 0, el mensaje permanece hasta el siguiente.
+         */
+        let messageTimeout;
+        function showMessage(message, duration) {
+            clearTimeout(messageTimeout);
+            messageBox.textContent = message;
+            messageBox.classList.add('show');
+
+            if (duration > 0) {
+                messageTimeout = setTimeout(() => {
+                    messageBox.classList.remove('show');
+                }, duration);
+            }
+        }
+
+        /**
+         * Maneja los eventos de teclado físico.
+         * @param {KeyboardEvent} event - El evento de teclado.
+         */
+        function handleKeyDown(event) {
+            const key = event.key.toUpperCase();
+            // Handle special keys like Ñ for Spanish if needed in the future
+            if (key === 'BACKSPACE' || key === 'BORRAR' || key === 'DELETE') {
+                handleInput('BACKSPACE');
+            } else if (key === 'ENTER') {
+                handleInput('ENTER');
+            } else if (key.length === 1 && currentLangData.regex.test(key)) {
+                handleInput(key);
+            }
+        }
+
+        /**
+         * Provides a hint to the user.
+         * Reveals one correct letter that hasn't been placed correctly yet.
+         */
+        function provideHint() {
+            if (gameOver || hintUsedThisGame) {
+                showMessage(currentLangData.messages.noMoreHints, 2000);
+                return;
+            }
+
+            // Ensure there is a secret word set
+            if (!secretWord) {
+                showMessage("No hay una palabra secreta para dar una sugerencia.", 2000);
+                return;
+            }
+
+            const secretLetters = secretWord.split('');
+            const currentTiles = document.querySelectorAll(`.tile[data-row="${currentRow}"] span`);
+            const guessedLettersInCurrentRow = Array.from(currentTiles).map(span => span.textContent);
+
+            let hintLetter = '';
+            // Find a letter in the secret word that hasn't been correctly guessed yet in its position
+            // and isn't already part of the current (incomplete) guess.
+            for (let i = 0; i < gameSettings.wordLength; i++) {
+                // Check if this position is not yet correct and the letter isn't already in the current guess
+                if (secretLetters[i] && currentTiles[i].classList.contains('correct') === false && !currentGuess.includes(secretLetters[i])) {
+                    hintLetter = secretLetters[i];
+                    break;
+                }
+            }
+
+            // Fallback if the above doesn't find a good hint (e.g., all letters are 'present' or 'absent' but not 'correct' yet)
+            // This ensures a hint is always given if possible
+            if (!hintLetter) {
+                 const currentCorrectLetters = new Set();
+                 document.querySelectorAll(`.tile.correct`).forEach(tile => {
+                     currentCorrectLetters.add(tile.textContent);
+                 });
+
+                 const possibleHintLetters = secretLetters.filter(letter => {
+                     // Letter must be in the secret word
+                     // Not already correctly placed in a previous row
+                     // Not already in the current incomplete guess
+                     return !currentCorrectLetters.has(letter) && !currentGuess.includes(letter);
+                 });
+
+                 if (possibleHintLetters.length > 0) {
+                     hintLetter = possibleHintLetters[Math.floor(Math.random() * possibleHintLetters.length)];
+                 }
+            }
+
+
+            if (hintLetter) {
+                showMessage(`${currentLangData.messages.hintUsed} '${hintLetter}'.`, 3000);
+                hintUsedThisGame = true; // Mark hint as used for this game
+            } else {
+                showMessage(currentLangData.messages.noMoreHints, 2000); // Should not happen if word isn't guessed and hints are enabled
+            }
+        }
+
+
+        // --- Initialization and Event Listeners ---
+        window.onload = function() {
+            loadStats(); // Load stats on start
+            loadSettings(); // Load settings on start
+            applySettings(); // Apply settings to UI
+
+            languageSelector.value = currentLanguageCode;
+            initializeGame(); // Start a new game with applied settings
+
+            // Event Listeners for language and modals
+            languageSelector.addEventListener('change', (event) => {
+                currentLanguageCode = event.target.value;
+                currentLangData = LANGUAGES[currentLanguageCode];
+                initializeGame();
+                applySettings(); // Re-apply settings to update language strings in modals
+            });
+
+            statsButton.addEventListener('click', showStatsModal);
+            closeStatsModalButton.addEventListener('click', hideStatsModal);
+            statsOverlay.addEventListener('click', (event) => {
+                if (event.target === statsOverlay) {
+                    hideStatsModal();
+                }
+            });
+
+            settingsButton.addEventListener('click', showSettingsModal);
+            closeSettingsModalButton.addEventListener('click', hideSettingsModal);
+            settingsOverlay.addEventListener('click', (event) => {
+                if (event.target === settingsOverlay) {
+                    hideSettingsModal();
+                }
+            });
+
+            // How To Play modal listeners
+            howToPlayButton.addEventListener('click', showHowToPlayModal);
+            closeHowToPlayModalButton.addEventListener('click', hideHowToPlayModal);
+            howToPlayOverlay.addEventListener('click', (event) => {
+                if (event.target === howToPlayOverlay) {
+                    hideHowToPlayModal();
+                }
+            });
+
+            // Event Listeners for settings changes
+            hardModeCheckbox.addEventListener('change', () => {
+                gameSettings.hardMode = hardModeCheckbox.checked;
+                saveSettings();
+                initializeGame(); // Restart game with new hard mode setting
+            });
+
+            themeDarkRadio.addEventListener('change', () => {
+                gameSettings.darkMode = true;
+                saveSettings();
+                applySettings();
+            });
+
+            themeLightRadio.addEventListener('change', () => {
+                gameSettings.darkMode = false;
+                saveSettings();
+                applySettings();
+            });
+
+            colorblindModeCheckbox.addEventListener('change', () => {
+                gameSettings.colorblindMode = colorblindModeCheckbox.checked;
+                saveSettings();
+                applySettings();
+            });
+
+            hintsCheckbox.addEventListener('change', () => {
+                gameSettings.showHints = hintsCheckbox.checked;
+                saveSettings();
+                hintButtonContainer.classList.toggle('hidden', !gameSettings.showHints);
+            });
+
+            confettiCheckbox.addEventListener('change', () => {
+                gameSettings.showConfetti = confettiCheckbox.checked;
+                saveSettings();
+            });
+
+            // Word Length adjustment
+            wordLengthRange.addEventListener('input', () => {
+                gameSettings.wordLength = parseInt(wordLengthRange.value);
+                wordLengthDisplay.textContent = gameSettings.wordLength;
+                // Update font size of tiles as range is moved for preview
+                const root = document.documentElement;
+                let fontSize = 2.2;
+                if (gameSettings.wordLength >= 8) {
+                    fontSize = 1.6;
+                } else if (gameSettings.wordLength >= 6) {
+                    fontSize = 1.9;
+                }
+                 document.querySelectorAll('.tile').forEach(tile => {
+                    tile.style.fontSize = `${fontSize}rem`;
+                });
+            });
+
+            // When range input change is finalized (mouse up or key up)
+            wordLengthRange.addEventListener('change', () => {
+                saveSettings();
+                initializeGame(); // Restart game with new word length
+            });
+
+
+            // Hint button click listener
+            hintButton.addEventListener('click', provideHint);
+        };
+
+        // Registro del Service Worker
+        // Este bloque se ha descomentado para su uso en un entorno de producción como GitHub Pages.
+        // Asegúrate de que service-worker.js esté en la raíz de tu repositorio.
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration);
+                    })
+                    .catch(error => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
